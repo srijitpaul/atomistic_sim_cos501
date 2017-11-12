@@ -13,7 +13,7 @@ double mass(int index);
 double delt         =   0.01;
 int num_particles   =   1;
 int Nd              =   1;
-int Nbeads          =   1;
+int Nbeads          =   4;
 /*
 //Normal distribution//
 double beta = 4;
