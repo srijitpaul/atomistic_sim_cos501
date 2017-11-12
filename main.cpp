@@ -11,9 +11,9 @@ double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, do
 double mass(int index);
 
 double delt         =   0.01;
-int num_particles   =   1;
-int Nd              =   1;
-int Nbeads          =   4;
+auto num_particles   =   1;
+auto Nd              =   1;
+auto Nbeads          =   1;
 /*
 //Normal distribution//
 double beta = 4;
