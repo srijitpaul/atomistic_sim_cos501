@@ -3,6 +3,7 @@
 #include <cmath>
 #include <iomanip>
 #include <random>
+#include <stdlib.h>
 using namespace std;
 
 double force_i(int i_particle, int bead_index, int dim, double* x);
@@ -10,7 +11,7 @@ double etot(double* mom_j);
 double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, double *mom_out, double *x_out, double *sq_en);
 double mass(int index);
 
-double delt         =   0.00001;
+double delt         =   0.01;
 auto num_particles   =   1;
 auto Nd              =   1;
 int Nbeads          =   4;
@@ -83,16 +84,19 @@ double etot(double* mom_j){
 double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, double* mom_out, double* x_out, double *sq_en ) {
 
     double avg_en=0;
-    double x_dum[Nbeads] = {0};
-    double mom_dum[Nbeads] = {0};
+    double x_dum[Nbeads];
+    double mom_dum[Nbeads];
     double *x   = new double[num_particles * Nbeads * Nd];
     double *mom = new double[num_particles * Nbeads * Nd];
+    double *x_temp   = new double[num_particles * Nbeads * Nd];
 
 
 
     /*Initial conditions loop*/
     for(int i=0; i<num_particles; i++) {
         for(int j=0; j<Nbeads; j++) {
+	    x_dum[j] = 0;
+            mom_dum[j] = 0;
             for (int k = 0; k < Nd; k++) {
                 *(x + i * Nbeads * Nd  + j * Nd + k) = *(x_init + i * Nbeads * Nd + j * Nd + k);
                 *(mom + i * Nbeads * Nd  + j * Nd + k) = *(mom_init + i * Nbeads * Nd + j * Nd + k);
@@ -116,12 +120,20 @@ double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, do
                                             * pow(delt, 2);
                     }
                 }
+
+                for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
+                    for (int dim = 0; dim < Nd; dim++) {
+
+                        *(x_temp + p_index * Nbeads * Nd + bead_index * Nd + dim) = x_dum[bead_index];
+		    }
+	        }
+			
                 for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
                     for (int dim = 0; dim < Nd; dim++) {
 
                         mom_dum[bead_index] = *(mom + p_index * Nbeads * Nd + bead_index * Nd + dim) +
                                               0.5 * (force_i(p_index, bead_index, dim, x) +
-                                                     force_i(p_index, bead_index, dim, x)) / (mass(p_index)) * delt;
+                                                     force_i(p_index, bead_index, dim, x_temp)) / (mass(p_index)) * delt;
                     }
                 }
                 for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
@@ -153,6 +165,7 @@ double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, do
     //cout<<*(x_out +1)<<endl;
     delete [] x;
     delete [] mom;
+    delete [] x_temp;
     return avg_en;
 }
 
@@ -230,7 +243,7 @@ int main() {
 
     //std::ofstream vel_verlet("vel_verlet_etot.dat", ios::out);
     std::ofstream vel("qm_vel_verlet_fluc.dat", ios::out);
-    int thermostat_freq = 1000;
+    int thermostat_freq = 100;
     int total_steps = 100;
     double e_vel_verlet = 0;
 
@@ -259,9 +272,9 @@ int main() {
     int ch=0;
     int num_trajectories = 2000;
 
-    double x[30000] = {0};
+    double x[400000] = {0};
 
-    double corr[30000] = {0};
+    double corr[400000] = {0};
 //Normal distribution//
     for(int traj = 1; traj<=num_trajectories;traj++) {
 
@@ -300,7 +313,7 @@ int main() {
                     std::normal_distribution<double> nd(0, sigma[i]);
 
                     for (int k = 0; k < Nd; k++) {
-                        std::default_random_engine de(traj*steps);//seed
+                        std::default_random_engine de(traj*steps*(j+10));//seed
                         *(mom_init + i * Nbeads * Nd  + j * Nd + k) = nd(de);
 
                     }
@@ -316,6 +329,7 @@ int main() {
             mom_init = mom_out;
         }
         cout<<"Energy "<<e_vel_verlet/(total_steps * thermostat_freq)<<endl;
+	cout<<"Time "<<total_steps * thermostat_freq * delt<<endl;
 
 
         double dum;
@@ -333,35 +347,42 @@ int main() {
         }
         corr[0] += x[0] * x[0]/(pow(Nbeads,2));
 
-        for(int ch_t=1; ch_t<= 30; ch_t++) {
+        for(int ch_t=1; ch_t<= 3000; ch_t++) {
 
             x[ch_t] = 0;
+	    //cout<<"input "<<*(mom_init + 0)<<endl;
             dum = velocity_verlet_integrate(1, mom_init, x_init, mom_out, x_out, sq_en);
+           // cout<<"dum "<<*(x_out + 1)<<endl;
             for(int i=0; i<num_particles; i++) {
                 for(int j=0; j<Nbeads; j++) {
                     for (int k = 0; k < Nd; k++) {
                          x[ch_t] += *(x_out + i * Nbeads * Nd  + j * Nd + k);
-                        // mom[ch_t] += *(mom_out + i * Nbeads * Nd  + j * Nd + k);
+			 //cout<<x[ch_t]<<endl;
                     }
                 }
             }
-            //cout<<dum<<endl;
-            corr[ch_t] += x[0] * x[ch_t]/(pow(Nbeads,2));
-            //cout<<x[0]<<endl;
+            corr[ch_t] += (x[0] * x[ch_t])/16;
+	    if(corr[ch_t]/traj>10000000000){
+	        cout<<x[ch_t]<<endl;
+		cout<<*(x_init + 0)<<"\t\t"<<*(x_init + 1)<<"\t\t"<<*(x_init + 2)<<"\t\t"<<*(x_init + 3)<<endl;
+		std::terminate();
+	    }
+
             x_init = x_out;
             mom_init = mom_out;
 
         }
-        cout<<"Traj number"<<traj<<"\t\t"<<dum<<endl;
+        cout<<"Traj number"<<traj<<"\t\t"<<corr[2999]/traj<<endl;
 
         //vel << pow(1/beta,2)<<"\t\t"<<delt * total_steps * thermostat_freq << "\t\t"
         //          << sq_e_vel_verlet/(total_steps * thermostat_freq) - pow(e_vel_verlet / (total_steps * thermostat_freq),2) <<endl;
     }
-    for (int ch_t=0; ch_t <=30;){
+    for (int ch_t=0; ch_t <=3000;){
 
-        vel<< ch_t*delt << "\t\t"<< corr[ch_t]/num_trajectories<<endl;
+        vel<< ch_t*delt << "\t\t"<< corr[ch_t]/2000<<endl;
         ch_t += 1;
     }
 
     //system("gnuplot plot 'vel_verlet_fluc.dat'");
+
 }
