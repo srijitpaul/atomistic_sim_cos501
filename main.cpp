@@ -4,6 +4,7 @@
 #include <iomanip>
 #include <random>
 #include <stdlib.h>
+#include <algorithm> 
 using namespace std;
 
 double force_i(int i_particle, int bead_index, int dim, double* x);
@@ -65,6 +66,92 @@ double force_i( int i_particle, int bead_index, int dim, double* x){
 
 }
 
+void get_reaction_coordinates(double* qctemp, double* xi_current, double* xi_new, double* dxi_new){
+
+	for(int i=0; i<num_particles; i++) {
+		for(int k=0; k<Nd; k++) {
+			
+			xi_new[0]  +=  *(qctemp + i * Nd + k) - *(xi_current + i * Nd + k);
+			*(dxi_new + i * Nd + k) =  1/Nbeads;
+		}
+	}  
+		
+}
+void get_centroid(double* x, double* centroid) {
+
+    for(int i=0; i<num_particles; i++) {
+        for(int k=0; k<Nd; k++) {
+            for (int j = 0; j < Nbeads; j++) {
+				*(centroid + i * Nd + k) += *(x + i * Nbeads * Nd + j * Nd + k)/Nbeads;
+	    	}
+		}
+    }
+} 
+void constraint_to_dividing_surface(double* x, double* mom, double* dxi, double* xi_current) {
+
+    double *centroid = new double[num_particles * Nd];
+    std::fill_n(centroid, num_particles * Nd, 0);
+    double *qctemp   = new double[num_particles * Nd];
+    std::fill_n(qctemp, num_particles * Nd, 0);
+    double xi_new[1], dx, dsigma;
+	xi_new[0] = 0;
+    double *dxi_new  = new double[num_particles * Nd];
+    double *d2xi_new = new double[num_particles * Nd * num_particles * Nd];
+    double coeff, sigma; 
+
+    get_centroid(x,centroid);
+    
+    //Langrange Multiplier
+    double mult = 0;
+
+    int maxiter = 100000;
+	int ch = 0;
+    for(int iter = 1; iter<=maxiter && ch==0; iter++ ) {
+
+		coeff = mult * delt * delt/Nbeads;
+		for(int i=0; i<num_particles; i++) {
+			for(int k=0; k<Nd; k++) {
+						
+				*(qctemp + i * Nd + k) = *(centroid + i * Nd + k) + coeff * (*(dxi + i * Nd + k))/mass(i);
+			}
+		}
+					 
+		get_reaction_coordinates(qctemp, xi_current, xi_new, dxi_new);
+		sigma = xi_new[0];
+		dsigma = 0;
+
+		for(int i=0; i<num_particles; i++) {
+			for(int k=0; k<Nd; k++) {
+						
+				dsigma += *(dxi_new + i * Nd + k) * delt * delt * (*(dxi + i * Nd + k))/(mass(i)* Nbeads);
+			}
+		}
+		
+		dx = sigma/dsigma;
+        	mult -= dx;
+
+		if(abs(dx)<pow(1,-8) || abs(sigma) < pow(1,-10)) ch=1;
+
+		if(iter == maxiter) {
+			cout<<"Error: SHAKE exceeded maximum number of iterations. Restarting trajectory."<<endl;
+			cout<<"dx = "<<dx<<"\t\t"<<"sigma = "<<sigma<<endl;
+		}
+	
+	}
+    for(int i=0; i<num_particles; i++) {
+        for(int j=0; j<Nbeads; j++) {
+            for (int k = 0; k < Nd; k++) {
+
+            	*(x + i * Nbeads * Nd + j * Nd + k) += coeff/mass(i) * (*(dxi + i * Nd + k));
+            	*(mom + i * Nbeads * Nd + j * Nd + k) += mult * delt/Nbeads * (*(dxi + i * Nd + k));
+
+            }
+        }
+    }
+		
+	 
+}
+
 double etot(double* mom_j){
 
     double K = 0;
@@ -109,60 +196,60 @@ double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, do
 
     for(int i=0; i<=(npart   -   1); i++) {
 
-            for (int p_index = 0; p_index < num_particles; p_index++) {
-                for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
-                    for (int dim = 0; dim < Nd; dim++) {
+    	for (int p_index = 0; p_index < num_particles; p_index++) {
+        	for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
+            	for (int dim = 0; dim < Nd; dim++) {
 
-                        x_dum[bead_index] = *(x + p_index * Nbeads * Nd + bead_index * Nd + dim) +
+                	x_dum[bead_index] = *(x + p_index * Nbeads * Nd + bead_index * Nd + dim) +
                                             (*(mom + p_index * Nbeads * Nd + bead_index * Nd + dim) / mass(p_index)) *
                                             delt +
                                             0.5 * (force_i(p_index, bead_index, dim, x) / mass(p_index))
                                             * pow(delt, 2);
-                    }
-                }
+            	}
+           	}
 
-                for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
-                    for (int dim = 0; dim < Nd; dim++) {
+			for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
+				for (int dim = 0; dim < Nd; dim++) {
 
-                        *(x_temp + p_index * Nbeads * Nd + bead_index * Nd + dim) = x_dum[bead_index];
-		    }
-	        }
-			
-                for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
-                    for (int dim = 0; dim < Nd; dim++) {
+					*(x_temp + p_index * Nbeads * Nd + bead_index * Nd + dim) = x_dum[bead_index];
+				}
+			}
+	
+			for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
+				for (int dim = 0; dim < Nd; dim++) {
 
-                        mom_dum[bead_index] = *(mom + p_index * Nbeads * Nd + bead_index * Nd + dim) +
-                                              0.5 * (force_i(p_index, bead_index, dim, x) +
-                                                     force_i(p_index, bead_index, dim, x_temp)) / (mass(p_index)) * delt;
-                    }
-                }
-                for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
-                    for (int dim = 0; dim < Nd; dim++) {
-
-
-                        *(x + p_index * Nbeads * Nd + bead_index * Nd + dim) = x_dum[bead_index];
-                        *(mom + p_index * Nbeads * Nd + bead_index * Nd + dim) = mom_dum[bead_index];
-                    }
-                }
-
-                avg_en += etot(mom);
-                sq_en[0] += pow(etot(mom),2);
-            }
-
-    }
+					mom_dum[bead_index] = *(mom + p_index * Nbeads * Nd + bead_index * Nd + dim) +
+									  0.5 * (force_i(p_index, bead_index, dim, x) +
+											 force_i(p_index, bead_index, dim, x_temp)) / (mass(p_index)) * delt;
+				}
+			}
+			for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
+				for (int dim = 0; dim < Nd; dim++) {
 
 
-    for (int p_index = 0; p_index < num_particles; p_index++) {
-        for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
-            for (int dim = 0; dim < Nd; dim++) {
-                *(x_out + p_index * Nbeads * Nd + bead_index * Nd + dim) = *(x + p_index * Nbeads * Nd +
-                                                                             bead_index * Nd + dim);
-                *(mom_out + p_index * Nbeads * Nd + bead_index * Nd + dim) = *(mom + p_index * Nbeads * Nd +
-                                                                               bead_index * Nd + dim);
-            }
-        }
-    }
-    //cout<<*(x_out +1)<<endl;
+					*(x + p_index * Nbeads * Nd + bead_index * Nd + dim) = x_dum[bead_index];
+					*(mom + p_index * Nbeads * Nd + bead_index * Nd + dim) = mom_dum[bead_index];
+				}
+			}
+
+            avg_en += etot(mom);
+            sq_en[0] += pow(etot(mom),2);
+      	}
+
+	}
+
+
+	for (int p_index = 0; p_index < num_particles; p_index++) {
+		for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
+			for (int dim = 0; dim < Nd; dim++) {
+				*(x_out + p_index * Nbeads * Nd + bead_index * Nd + dim) = *(x + p_index * Nbeads * Nd +
+																	 bead_index * Nd + dim);
+				*(mom_out + p_index * Nbeads * Nd + bead_index * Nd + dim) = *(mom + p_index * Nbeads * Nd +
+																	   bead_index * Nd + dim);
+			}
+		}
+	}
+	//cout<<*(x_out +1)<<endl;
     delete [] x;
     delete [] mom;
     delete [] x_temp;
@@ -329,7 +416,7 @@ int main() {
             mom_init = mom_out;
         }
         cout<<"Energy "<<e_vel_verlet/(total_steps * thermostat_freq)<<endl;
-	cout<<"Time "<<total_steps * thermostat_freq * delt<<endl;
+		cout<<"Time "<<total_steps * thermostat_freq * delt<<endl;
 
 
         double dum;

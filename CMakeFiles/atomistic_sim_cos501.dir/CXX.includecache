@@ -1,0 +1,24 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/spaul/test/atomistic_sim_cos501/main.cpp
+iostream
+-
+fstream
+-
+cmath
+-
+iomanip
+-
+random
+-
+stdlib.h
+-
+algorithm
+-
+
