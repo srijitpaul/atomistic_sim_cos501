@@ -148,7 +148,7 @@ void constraint_to_dividing_surface(double* x, double* mom, double* dxi, double 
 						
 				*(qctemp + i * Nd + k) = *(centroid + i * Nd + k) + coeff * (*(dxi + i * Nd + k))/mass(i);
 				//cout<<"test "<< coeff*(*(dxi + i * Nd + k))/mass(i)<<endl;
-				if(coeff!= coeff)std::terminate();
+				//if(coeff!= coeff)std::terminate();
 			}
 		}
 					 
@@ -410,13 +410,13 @@ int main() {
 
     cout<<beta<<endl;
 
-    //std::ofstream vel_verlet("vel_verlet_etot.dat", ios::out);
+    std::ofstream vel_verlet("vel_verlet_etot.dat", ios::out);
     std::ofstream vel("constrainted_qm_vel_verlet.dat", ios::out);
     int thermostat_freq = 100;
     int total_steps = 100;
     double e_vel_verlet = 0;
     double *dxi  = new double[num_particles * Nd];
-	std::fill_n(dxi, num_particles * Nd, 0.25);
+    std::fill_n(dxi, num_particles * Nd, 0.25f);
 	cout<<"dxi "<<dxi[0]<<endl;
 	double xi_current = 0.5;
 	double xi[1];
@@ -443,11 +443,11 @@ int main() {
     vel<<scientific;
     vel.precision(16);
     int ch=0;
-    int num_trajectories = 2000;
+    int num_trajectories = 2;
 
-    double x[400000] = {0};
+    double x[3000] = {0};
 
-    double corr[400000] = {0};
+    double corr[3000] = {0};
 //Normal distribution//
     for(int traj = 1; traj<=num_trajectories;traj++) {
 
@@ -470,11 +470,11 @@ int main() {
         //Thermalization step
         for (int steps = 1; steps <= total_steps; steps++) {
 
-/*        std::cout << "VELOCITY-VERLET: The energy after nsteps:" << steps - 1 << " is "
-                  << velocity_verlet_integrate(steps) << std::endl;
-        std::cout << "RUNGE-KUTTA - 2: The energy after nsteps:" << steps - 1 << " is " << RK2_integrate(steps) << std::endl;
-        std::cout << "RUNGE-KUTTA - 4: The energy after nsteps:" << steps - 1 << " is " << RK4_integrate(steps) << std::endl;
-*/
+//        std::cout << "VELOCITY-VERLET: The energy after nsteps:" << steps - 1 << " is "
+//                  << velocity_verlet_integrate(steps) << std::endl;
+//        std::cout << "RUNGE-KUTTA - 2: The energy after nsteps:" << steps - 1 << " is " << RK2_integrate(steps) << std::endl;
+//        std::cout << "RUNGE-KUTTA - 4: The energy after nsteps:" << steps - 1 << " is " << RK4_integrate(steps) << std::endl;
+//
             for(int i=0; i<num_particles; i++) {
 
                 //sigma[i] = sqrt(mass(i)/beta);
@@ -498,9 +498,18 @@ int main() {
             //vel_verlet << beta<<"\t\t"<<delt * steps * thermostat_freq << "\t\t" << e_vel_verlet / (steps * thermostat_freq)i
             //           << std::endl;
 
-            x_init = x_out;
-            mom_init = mom_out;
+            //x_init = x_out;
+            //mom_init = mom_out;
 			//xi_current = xi[0];
+            for(int i=0; i<num_particles; i++) {
+                for(int j=0; j<Nbeads; j++) {
+                    for (int k = 0; k < Nd; k++) {
+                        *(x_init + i * Nbeads * Nd  + j * Nd + k) =  *(x_out + i * Nbeads * Nd  + j * Nd + k);
+                        *(mom_init + i * Nbeads * Nd  + j * Nd + k) =  *(mom_out + i * Nbeads * Nd  + j * Nd + k);
+                    }
+                }
+            }
+
         }
         cout<<"Energy "<<e_vel_verlet/(total_steps * thermostat_freq)<<endl;
 		cout<<"Time "<<total_steps * thermostat_freq * delt<<endl;
@@ -542,12 +551,21 @@ int main() {
 			//std::terminate();
 	    	}
 
-            x_init = x_out;
-            mom_init = mom_out;
+            //x_init = x_out;
+            //mom_init = mom_out;
 			//xi_current = xi[0];
+            for(int i=0; i<num_particles; i++) {
+                for(int j=0; j<Nbeads; j++) {
+                    for (int k = 0; k < Nd; k++) {
+                        *(x_init + i * Nbeads * Nd  + j * Nd + k) =  *(x_out + i * Nbeads * Nd  + j * Nd + k);
+                        *(mom_init + i * Nbeads * Nd  + j * Nd + k) =  *(mom_out + i * Nbeads * Nd  + j * Nd + k);
+                    }
+                }
+            }
+            
 
         }
-        cout<<"Traj number"<<traj<<"\t\t"<<corr[2999]/traj<<endl;
+        cout<<"Traj number"<<traj<<"\t\t"<<corr[0]/traj<<endl;
 
         //vel << pow(1/beta,2)<<"\t\t"<<delt * total_steps * thermostat_freq << "\t\t"
         //          << sq_e_vel_verlet/(total_steps * thermostat_freq) - pow(e_vel_verlet / (total_steps * thermostat_freq),2) <<endl;
