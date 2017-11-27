@@ -212,7 +212,7 @@ double etot(double* mom_j){
     return K;
 }
 
-double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, double* mom_out, double* x_out, double *sq_en, double* dxi, double* xi, double xi_current) {
+double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, double* mom_out, double* x_out, double *sq_en, double constraint, double* dxi, double* xi, double xi_current) {
 
     double avg_en=0;
     double x_dum[num_particles][Nbeads];
@@ -239,7 +239,7 @@ double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, do
     }
     avg_en += etot(mom);
 
-    constraint_momentum_to_dividing_surface(mom, dxi); 
+    if(constraint==1)constraint_momentum_to_dividing_surface(mom, dxi); 
     for(int i=0; i<=(npart   -   1); i++) {
 
 
@@ -268,11 +268,12 @@ double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, do
 				}
 			}
 		}
-		//cout<<"dxi "<<dxi[0]<<endl;	
-		constraint_to_dividing_surface(x_temp, mom, dxi, xi_current);
-		get_centroid(x_temp,centroid);
-		get_reaction_coordinates(centroid, xi_current, xi, dxi);
-
+		//cout<<"dxi "<<dxi[0]<<endl;
+		if(constraint == 1 ) {	
+			constraint_to_dividing_surface(x_temp, mom, dxi, xi_current);
+			get_centroid(x_temp,centroid);
+			get_reaction_coordinates(centroid, xi_current, xi, dxi);
+		}
 
     	for (int p_index = 0; p_index < num_particles; p_index++) {
 			for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
@@ -298,7 +299,7 @@ double velocity_verlet_integrate(int npart, double* mom_init, double* x_init, do
 				}
 			}
 		}
- 		constraint_momentum_to_dividing_surface(mom, dxi); 
+ 		if(constraint == 1) constraint_momentum_to_dividing_surface(mom, dxi); 
 
     	for (int p_index = 0; p_index < num_particles; p_index++) {
 			for (int bead_index = 0; bead_index < Nbeads; bead_index++) {
@@ -409,8 +410,8 @@ double RK4_integrate(int npart) {
 int main() {
 
     cout<<beta<<endl;
-
-    std::ofstream vel_verlet("vel_verlet_etot.dat", ios::out);
+	double constraint;
+    //std::ofstream vel_verlet("vel_verlet_etot.dat", ios::out);
     std::ofstream vel("constrainted_qm_vel_verlet.dat", ios::out);
     int thermostat_freq = 100;
     int total_steps = 100;
@@ -443,7 +444,7 @@ int main() {
     vel<<scientific;
     vel.precision(16);
     int ch=0;
-    int num_trajectories = 2;
+    int num_trajectories = 2000;
 
     double x[3000] = {0};
 
@@ -493,7 +494,8 @@ int main() {
                 }
             }
 			//cout<<"xi "<<xi_current<<endl;
-            e_vel_verlet += velocity_verlet_integrate(thermostat_freq, mom_init, x_init, mom_out, x_out, sq_en, dxi, xi,  xi_current);
+			constraint = 1;
+            e_vel_verlet += velocity_verlet_integrate(thermostat_freq, mom_init, x_init, mom_out, x_out, sq_en, constraint, dxi, xi,  xi_current);
             sq_e_vel_verlet = sq_en[0];
             //vel_verlet << beta<<"\t\t"<<delt * steps * thermostat_freq << "\t\t" << e_vel_verlet / (steps * thermostat_freq)i
             //           << std::endl;
@@ -534,7 +536,8 @@ int main() {
 
             x[ch_t] = 0;
 	    //cout<<"input "<<*(mom_init + 0)<<endl;
-            dum = velocity_verlet_integrate(1, mom_init, x_init, mom_out, x_out, sq_en, dxi, xi, xi_current);
+	    	constraint = 0;
+            dum = velocity_verlet_integrate(1, mom_init, x_init, mom_out, x_out, sq_en, constraint, dxi, xi, xi_current);
            // cout<<"dum "<<*(x_out + 1)<<endl;
             for(int i=0; i<num_particles; i++) {
                 for(int j=0; j<Nbeads; j++) {
