@@ -407,6 +407,11 @@ double RK4_integrate(int npart) {
     return e;
 }
 */
+double heavside(double x) {
+	if(x<0) return 0;
+	else return 1;
+}
+
 int main() {
 
     cout<<beta<<endl;
@@ -424,6 +429,10 @@ int main() {
     /* Initial conditions */
     double* mom_init    = new double[num_particles * Nbeads * Nd];
     double* x_init      = new double[num_particles * Nbeads * Nd];
+	double* x_meas_init = new double[num_particles * Nbeads * Nd];
+    double* mom_minus_init    = new double[num_particles * Nbeads * Nd];
+		
+    double *centroid = new double[num_particles * Nd];
 
 
     /*Initial conditions loop*/
@@ -444,11 +453,12 @@ int main() {
     vel<<scientific;
     vel.precision(16);
     int ch=0;
-    int num_trajectories = 2000;
+    int num_trajectories = 20;
 
-    double x[3000] = {0};
+    double pplus[1] = {0};
+	double pminus[1] = {0};
 
-    double corr[3000] = {0};
+    double corr[6000] = {0};
 //Normal distribution//
     for(int traj = 1; traj<=num_trajectories;traj++) {
 
@@ -519,67 +529,102 @@ int main() {
 
         double dum;
         //calculation step
-        x[0] = 0;
+        //x[0] = 0;
+		double dev;
+		int num_meas_traj = 50;
+		for(int i=0; i<num_particles; i++) {
+			for(int j=0; j<Nbeads; j++) {
+				for (int k = 0; k < Nd; k++) {
+					*(x_meas_init + i * Nbeads * Nd  + j * Nd + k) =  *(x_out + i * Nbeads * Nd  + j * Nd + k);
+				}
+			}
+		}
+		
+		//cout<<"I am here"<<endl;
+		for(int meas_traj=1; meas_traj<num_meas_traj;meas_traj++) {
+			
+			pplus[0] = 0;
+			pminus[0] = 0;
+        	for(int i=0; i<num_particles; i++) {
+             
+				dev =  sqrt(mass(i)/beta);
+				for(int j=0; j<Nbeads; j++) {
+                	for (int k = 0; k < Nd; k++) {
+                    	std::normal_distribution<double> new_nd(0, dev);
+						std::default_random_engine new_de(meas_traj*(k + 1)*(j+10));//seed
+						*(mom_init + i * Nbeads * Nd  + j * Nd + k) = new_nd(new_de);
+						*(mom_minus_init + i * Nbeads * Nd  + j * Nd + k) =(-1)*(*(mom_init + i * Nbeads * Nd  + j * Nd + k));
+						
+                    	pplus[0] += *(mom_init + i * Nbeads * Nd  + j * Nd + k)/nbeads;
+                    	pminus[0] += *(mom_minus_init + i * Nbeads * Nd  + j * Nd + k)/nbeads;
 
-        for(int i=0; i<num_particles; i++) {
-            for(int j=0; j<Nbeads; j++) {
-                for (int k = 0; k < Nd; k++) {
-                    x[0] += *(x_out + i * Nbeads * Nd  + j * Nd + k);
+						*(x_init + i * Nbeads * Nd  + j * Nd + k) =  *(x_meas_init + i * Nbeads * Nd  + j * Nd + k);
+						
+						
+                	}
+            	}	
+        	}
+        	//corr[0] += x[0] * x[0]/(pow(Nbeads,2));
 
-                    //if(j==1) cout<<x[0]<<endl;
-                }
-            }
-        }
-        corr[0] += x[0] * x[0]/(pow(Nbeads,2));
+        	for(int ch_t=0; ch_t<= 6000; ch_t++) {
 
-        for(int ch_t=1; ch_t<= 3000; ch_t++) {
+	    		constraint = 0;
+            	dum = velocity_verlet_integrate(1, mom_init, x_init, mom_out, x_out, sq_en, constraint, dxi, xi, xi_current);
+			
+				get_centroid(x_out,centroid);
+				get_reaction_coordinates(centroid, xi_current, xi, dxi);
+			
+            	corr[ch_t] += heavside(xi[0]) * pplus[0];
+	    	
+            	for(int i=0; i<num_particles; i++) {
+                	for(int j=0; j<Nbeads; j++) {
+                    	for (int k = 0; k < Nd; k++) {
+                        	*(x_init + i * Nbeads * Nd  + j * Nd + k) =  *(x_out + i * Nbeads * Nd  + j * Nd + k);
+                        	*(mom_init + i * Nbeads * Nd  + j * Nd + k) =  *(mom_out + i * Nbeads * Nd  + j * Nd + k);
+                    	}
+                	}
+            	}
+      		}
+		
+			for(int i=0; i<num_particles; i++) {
+				for(int j=0; j<Nbeads; j++) {
+					for (int k = 0; k < Nd; k++) {
+						*(x_init + i * Nbeads * Nd  + j * Nd + k) =  *(x_meas_init + i * Nbeads * Nd  + j * Nd + k);
+					}
+				}
+			}
 
-            x[ch_t] = 0;
-	    //cout<<"input "<<*(mom_init + 0)<<endl;
-	    	constraint = 0;
-            dum = velocity_verlet_integrate(1, mom_init, x_init, mom_out, x_out, sq_en, constraint, dxi, xi, xi_current);
-           // cout<<"dum "<<*(x_out + 1)<<endl;
-            for(int i=0; i<num_particles; i++) {
-                for(int j=0; j<Nbeads; j++) {
-                    for (int k = 0; k < Nd; k++) {
-                         x[ch_t] += *(x_out + i * Nbeads * Nd  + j * Nd + k);
-			 //cout<<x[ch_t]<<endl;
-                    }
-                }
-            }
-            corr[ch_t] += (x[0] * x[ch_t])/16;
-	    	if(corr[ch_t]/traj>10000000000){
-	        cout<<x[ch_t]<<endl;
-			cout<<*(x_init + 0)<<"\t\t"<<*(x_init + 1)<<"\t\t"<<*(x_init + 2)<<"\t\t"<<*(x_init + 3)<<endl;
-			//std::terminate();
-	    	}
+        	for(int ch_t=0; ch_t<= 6000; ch_t++) {
 
-            //x_init = x_out;
-            //mom_init = mom_out;
-			//xi_current = xi[0];
-            for(int i=0; i<num_particles; i++) {
-                for(int j=0; j<Nbeads; j++) {
-                    for (int k = 0; k < Nd; k++) {
-                        *(x_init + i * Nbeads * Nd  + j * Nd + k) =  *(x_out + i * Nbeads * Nd  + j * Nd + k);
-                        *(mom_init + i * Nbeads * Nd  + j * Nd + k) =  *(mom_out + i * Nbeads * Nd  + j * Nd + k);
-                    }
-                }
-            }
-            
-
-        }
-        cout<<"Traj number"<<traj<<"\t\t"<<corr[0]/traj<<endl;
-
-        //vel << pow(1/beta,2)<<"\t\t"<<delt * total_steps * thermostat_freq << "\t\t"
-        //          << sq_e_vel_verlet/(total_steps * thermostat_freq) - pow(e_vel_verlet / (total_steps * thermostat_freq),2) <<endl;
+	    		constraint = 0;
+            	dum = velocity_verlet_integrate(1, mom_minus_init, x_init, mom_out, x_out, sq_en, constraint, dxi, xi, xi_current);
+				get_centroid(x_out,centroid);
+				get_reaction_coordinates(centroid, xi_current, xi, dxi);
+			
+            	corr[ch_t] += heavside(xi[0]) * pminus[0]; 
+	    	    for(int i=0; i<num_particles; i++) {
+                	for(int j=0; j<Nbeads; j++) {
+                    	for (int k = 0; k < Nd; k++) {
+                        	*(x_init + i * Nbeads * Nd  + j * Nd + k) =  *(x_out + i * Nbeads * Nd  + j * Nd + k);
+                        	*(mom_minus_init + i * Nbeads * Nd  + j * Nd + k) =  *(mom_out + i * Nbeads * Nd  + j * Nd + k);
+                    	}
+                	}
+            	}
+      		}
+	
+		}
+        cout<<"Traj number"<<traj<<"\t\t"<<corr[0]<<endl;
     }
-    for (int ch_t=0; ch_t <=3000;){
+   	for (int ch_t=0; ch_t <=6000;){
 
         vel<< ch_t*delt << "\t\t"<< corr[ch_t]/2000<<endl;
         ch_t += 1;
     }
 
     //system("gnuplot plot 'vel_verlet_fluc.dat'");
+	delete [] centroid;
+	delete [] x_meas_init;
+	delete [] mom_minus_init;
 	delete [] dxi;
 	delete [] x_init;
 	delete [] x_out;
