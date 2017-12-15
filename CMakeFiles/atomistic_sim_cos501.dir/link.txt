@@ -1,1 +1,1 @@
-/home/buildsets/eb141118/software/icc/2015.0.090/bin/icpc     CMakeFiles/atomistic_sim_cos501.dir/main.cpp.o  -o atomistic_sim_cos501 
+/usr/bin/c++  -fsanitize=address   CMakeFiles/atomistic_sim_cos501.dir/main.cpp.o  -o atomistic_sim_cos501 
