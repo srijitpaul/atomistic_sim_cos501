@@ -17,7 +17,7 @@ auto num_particles   =   1;
 auto Nd              =   1;
 int Nbeads          =   128;
 double nbeads 		=   128;
-double beta          =   0.03125;
+double beta          =   8/nbeads;
 double A            = -18/M_PI;
 double B            = 13.5/M_PI;
 double a            = 8/sqrt(3*M_PI);
@@ -49,7 +49,10 @@ double force_i( int i_particle, int bead_index, int dim, double* x){
     double force = 0;
     int prev_bead = ((Nbeads + ((bead_index-1)%Nbeads)) % Nbeads);
     int next_bead = ((Nbeads + ((bead_index+1)%Nbeads)) % Nbeads);
-
+    double xc = *(x + i_particle * Nbeads * Nd + bead_index * Nd + dim);
+    double xp = *(x + i_particle * Nbeads * Nd + prev_bead * Nd + dim);
+    double xn = *(x + i_particle * Nbeads * Nd + next_bead * Nd + dim);
+ 
    /* for(int j = 0; j<num_particles; j++) {
 
         if(j != i_particle)
@@ -58,12 +61,9 @@ double force_i( int i_particle, int bead_index, int dim, double* x){
     }*/
     if(num_particles==1) {
 
-        force = -mass(0) * (pow((1/beta),2)*(2 *(*(x + i_particle * Nbeads * Nd + bead_index * Nd + dim))
-                            - (*(x + i_particle * Nbeads * Nd + prev_bead * Nd + dim))
-                            - (*(x + i_particle * Nbeads * Nd + next_bead * Nd + dim)))
-                            - 2* B * tanh(*(x + i_particle * Nbeads * Nd + next_bead * Nd + dim)) /(a * cosh(*(x + i_particle * Nbeads * Nd + next_bead * Nd + dim)))
-                            + (2 * A * exp ( (-2*(*(x + i_particle * Nbeads * Nd + next_bead * Nd + dim)))/a))/(a * pow(1 +
-                                exp ( (-2*(*(x + i_particle * Nbeads * Nd + next_bead * Nd + dim)))/a),2)));
+        force = -mass(0) * (pow((1/beta),2)*(2 * xc - xp - xn)                            
+                            - (2 * B * tanh(xc/a))/(a * pow(cosh(xc/a),2))
+                            + (2 * A * exp (-2*(xc)/a)/(a * pow(1 + exp (-2*(xc/a)),2))));
     }
     //cout<<force<<endl;
     return  force;
@@ -172,7 +172,7 @@ void constraint_to_dividing_surface(double* x, double* mom, double* dxi, double 
 		
 		dx = sigma/dsigma;
 		//cout<<"dx "<<fabs(dx)<<endl;
-        //cout<<"sigma "<<fabs(sigma)<<endl;
+        //cout<<"sigma "<<sigma<<endl;
         mult = mult - dx;
 		
 		if(abs(dx)<1e-8 || abs(sigma) < 1e-10) {ch=1;}
@@ -424,14 +424,14 @@ int main() {
     cout<<beta<<endl;
 	double constraint;
     //std::ofstream vel_verlet("vel_verlet_etot.dat", ios::out);
-    std::ofstream vel("neg_1point0_constrainted_qm_vel_verlet.dat", ios::out);
+    std::ofstream vel("neg_1point5_constrainted_qm_vel_verlet.dat", ios::out);
     int thermostat_freq = 100;
     int total_steps = 1000;
     double e_vel_verlet = 0;
     double *dxi  = new double[num_particles * Nd];
     std::fill_n(dxi, num_particles * Nd, 1);
 	cout<<"dxi "<<dxi[0]<<endl;
-	double xi_current = -1.0;
+	double xi_current = -1.5;
 	double xi[1];
     /* Initial conditions */
     double* mom_init    = new double[num_particles * Nbeads * Nd];
@@ -460,7 +460,7 @@ int main() {
     vel<<scientific;
     vel.precision(16);
     int ch=0;
-    int num_trajectories = 20;
+    int num_trajectories = 1;
 
 
 
